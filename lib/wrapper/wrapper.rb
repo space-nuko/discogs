@@ -701,6 +701,20 @@ class Discogs::Wrapper
     end
   end
 
+  # Retrieve a user's lists.
+  #
+  # @param [String] username
+  def get_user_lists(username)
+    query_and_build "users/#{username}/lists"
+  end
+
+  # Retrieve a user list by ID.
+  #
+  # @param [String] list_id
+  def get_list(list_id)
+    query_and_build "lists/#{list_id}"
+  end
+
   # Perform a search.
   #
   # @macro need_auth
