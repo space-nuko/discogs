@@ -785,25 +785,37 @@ class Discogs::Wrapper
                      "Accept-Encoding" => "gzip,deflate",
                      "User-Agent"      => @app_name}
 
-    if any_authentication?
-      if [:post, :put].include?(method)
-        headers["Content-Type"] = headers["Accept"]
+    retries = 0
+    while true
+      if any_authentication?
+        if [:post, :put].include?(method)
+          headers["Content-Type"] = headers["Accept"]
 
-        if user_facing?
-          @access_token.send(method, formatted, JSON(body), headers)
+          if user_facing?
+            result = @access_token.send(method, formatted, JSON(body), headers)
+          else
+            result = HTTParty.send(method, uri, {headers: headers, body: JSON(body)})
+          end
         else
-          HTTParty.send(method, uri, {headers: headers, body: JSON(body)})
+          if user_facing?
+            result = @access_token.send(method, formatted, headers)
+          else
+            result = HTTParty.send(method, uri, headers: headers)
+          end
         end
       else
-        if user_facing?
-          @access_token.send(method, formatted, headers)
-        else
-          HTTParty.send(method, uri, headers: headers)
-        end
+        # All non-authenticated endpoints are GET.
+        result = HTTParty.get(uri, headers: headers)
       end
-    else
-      # All non-authenticated endpoints are GET.
-      HTTParty.get(uri, headers: headers)
+
+      unless result.include?("message") && result["message"] == "You are making requests too quickly."
+        return result
+      end
+
+      retries += 1
+      time = 2.0 ** retries
+      warn "[WARN] hit rate limit, sleeping #{time} seconds"
+      sleep time
     end
   end
 
@@ -836,7 +848,7 @@ class Discogs::Wrapper
 
       if safe_name
         # BC: Temporary set original key for backwards-compatibility.
-        warn "[DEPRECATED]: The key '#{k}' has been replaced with '#{safe_name}'. When accessing, please use the latter. This message will be removed in the next major release."
+        # warn "[DEPRECATED]: The key '#{k}' has been replaced with '#{safe_name}'. When accessing, please use the latter. This message will be removed in the next major release."
         result[k] = v
         # End BC
 
